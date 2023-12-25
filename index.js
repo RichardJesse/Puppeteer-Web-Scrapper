@@ -1,42 +1,52 @@
 import puppeteer from 'puppeteer';
 
-
-async function getQuotes (){
-
+ async function getQuotes() {
     const browser = await puppeteer.launch({
-        headless:false,
-        defaultViewport:null
+        headless: false, 
     });
-    
+
     const page = await browser.newPage();
-    
-    await page.goto("http://quotes.toscrape.com/",{
-        waitUntil: 'domcontentloaded',
-    
-    });
 
-     const quotes = await page.evaluate(()=>{
-        const quotelist =document.querySelectorAll('.quote');
+    try {
+        await page.goto('http://quotes.toscrape.com/', {
+            waitUntil: 'domcontentloaded',
+        });
 
-        return Array.from(quotelist).map((quote)=>{
+        const allQuotes = [];
 
-            const text = quote.querySelector('.text').innerHTML;
-            const author =  quote.querySelector('.author').innerHTML;
-    
-            return {text,author}
-        })
+        while (true) {
+            const quotesOnPage = await page.evaluate(() => {
+                const quotelist = document.querySelectorAll('.quote');
 
-     });
+                return Array.from(quotelist).map((quote) => {
+                    const textElement = quote.querySelector('.text');
+                    const authorElement = quote.querySelector('.author');
+                    const tagsElement = quote.querySelector('.tag');
 
-     for(let  qt of quotes){
-        console.log(qt);
+                    const text = textElement ? textElement.innerHTML : '';
+                    const author = authorElement ? authorElement.innerHTML : '';
+                    const tags = tagsElement ? tagsElement.innerHTML : '';
 
-        await page.click(".pager > .next > a");
-     }
+                    return { text, author, tags };
+                });
+            });
 
+            allQuotes.push(...quotesOnPage);
 
-    //  await browser.close();
+            const nextButton = await page.$('.pager > .next > a');
+            if (nextButton) {
+                await nextButton.click();
+                await page.waitForTimeout(1000); // Add a delay to ensure the next page is loaded
+            } else {
+                break; // Exit the loop if there is no "Next" button
+            }
+        }
 
+        return allQuotes;
+    } catch (error) {
+        console.error('Error in getQuotes:', error);
+        throw error; // Rethrow the error for handling in the calling function
+    } finally {
+        await browser.close();
+    }
 }
-
-getQuotes();
